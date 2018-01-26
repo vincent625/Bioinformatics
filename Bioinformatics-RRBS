@@ -1,0 +1,58 @@
+Bismark to get %methylation
+bismark -p 4 --sam /home/yanzhu/Genomes/Human/GRCh38/ xxx.fastq
+
+BedGraph and Coverage
+bismark_methylation_extractor --multicore 16 -s --bedGraph --counts --buffer_size 20G xxx.bam
+
+CpG Report, BedGraph and Coverage (will get xxx.CpG_report.txt )
+bismark_methylation_extractor --multicore 16 -s --bedGraph --counts --buffer_size 20G --cytosine_report --genome_folder /home/yanzhu/Genomes/Human/GRCh38/ xxx.bam
+
+Generate CpG Report using Coverage
+coverage2cytosine --genome_folder /home/yanzhu/Genomes/Human/GRCh38/ -o CytosineReport.txt xxx.cov
+
+To prepare Input for MethylKit form xxx.CpG_report.txt or CytosineReport.txt (MethylKit required format: Chr, Start, Strand, MethylationRatio, Coverage, and add chr_ to the beginning of first column)
+awk '{OFS="\t";if($4+0 > 0 || $5+0 >0 ) print "chr_"$1,$2,$3,$4/($4+$5),$4+$5;}' xxx.CpG_report.txt/CytosineReport.txt > InputForMethylKit.txt
+
+Remove sam header and sort to prepare sam file for methylkit
+grep -v '^[[:space:]]*@' xxx.sam | sort -k3,3 -k4,4n > xxx.sorted.sam
+Add chr to the beginning of the 3rd column of sorted sam file to prepare for read.bismark
+awk 'BEGIN{OFS="\t"}$3="chr"$3' xxx.sorted.sam > InputForMethylKit.sam
+
+library(methylKit)
+Read in sorted sam file
+my.methRaw=read.bismark("xxx.sam",sample.id="xxx",assembly="hg38",read.context="CpG",save.folder=getwd())
+Read in xxx_CpG.txt
+myobj=read("xxx_CpG.txt",sample.id="test1",assembly="hg38",context="CpG")
+
+Read in promoter regions
+promoters = read.bed("/home/yanzhu/refGene_Prom/refGene_Prom_2000_500_hg38.bed")
+Summarizes the methylation information over a given set of promoter regions
+reads_in_promoters = regionCounts(my.methRaw, promoters)
+
+Output methylation information at promoter regions to a tab-delimitated txt file
+write.table(reads_in_promoters, file="meth_rrbs_ref_prom.txt", sep = "\t", quote = F, row.names = F)
+Covert coverage to percent methylation and only print chr, start, end, %methylation
+awk '{OFS="\t";if($6+0 > 0 || $7+0 >0 ) print $1,$2,$3,$6/($6+$7)}' meth_rrbs_ref_prom.txt > percmeth_rrbs_ref_prom.txt
+Appending row number to first column
+awk '$1=(FNR FS $1)' percmeth_rrbs_ref_prom.txt > percmeth_rrbs_ref_prom_ID.txt
+Adding hearder
+sed -i '1i ID\tChr\tStart\tStop\tBS' percmeth_rrbs_ref_prom_ID.txt
+
+Just perform methylation call
+perl /home/yanzhu/R/x86_64-unknown-linux-gnu-library/3.2/methylKit/exec/methCall.pl --read1 xxx.sam --type paired_sam --nolap --CpG xxx.CpG.txt
+
+Intersecting promoter regions with RRBS (get rid of 1st line of xx.bedGraph)
+sed '1d' xx.bedGraph > xxx.bedGraph
+Getting promoter regions
+UCSC Table Browser -> Group: Genes and Gene Prediction ->Track:  RefSeq Genes -> Table: refGene -> Output Format: all fields from selected table
+1. Transforming refGene(with TSS Info) file into bed format
+awk 'BEGIN{FS=OFS="\t"}{print $3,$5,$6,$2"|"$13,0,$4}' refGene.txt> refGene.bed
+2. Getting promoter regions of each transcript
+awk 'BEGIN{FS=OFS="\t"}($6=="+"){print $1,$2,$2,$4,$5,$6}' refGene.bed > refGene.TSS.bed
+awk 'BEGIN{FS=OFS="\t"}($6=="-"){print $1,$3,$3,$4,$5,$6}' refGene.bed >> refGene.TSS.bed
+Get rid of [0, 0] start end positions
+awk '(($2 != $3) || (($2 == $3) && ($2 != 0)))' refGene.TSS.bed
+3. Use slopBed to increase the size of each feature (TSS) to define a promoter region around the TSS ([-2000,+500])
+slopBed -i refGene.TSS.bed -l 2000 -r 500 -s  -g chromInfo.txt  | sortBed > refGene_Prom_2000_500.bed
+Output only unique lines based on chrom/start/end (columns 1/2/3)
+sort -k1,1 -k2,2n -k3,3n -u refGene_Prom_2000_500.bed > refGene_Prom_2000_500_Unique.bed

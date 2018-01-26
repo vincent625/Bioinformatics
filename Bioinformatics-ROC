@@ -1,0 +1,139 @@
+Getting promoter regions
+UCSC Table Browser -> Group: Genes and Gene Prediction ->Track:  RefSeq Genes -> Table: refGene -> Output Format: all fields from selected table
+1. Transforming refGene(with TSS Info) file into bed format
+old
+awk 'BEGIN{FS=OFS="\t"}{print $3,$5,$6,$2"|"$13,0,$4}' refGene.txt> refGene.bed
+new
+awk 'BEGIN{FS=OFS="\t"}{print $1,$2,$3,$4,0,$6}' refGene_hg19.txt> refGene_hg19.bed
+
+2. Getting promoter regions of each transcript
+awk 'BEGIN{FS=OFS="\t"}($6=="+"){print $1,$2,$2,$4,$5,$6}' refGene.bed > refGene.TSS.bed
+awk 'BEGIN{FS=OFS="\t"}($6=="-"){print $1,$3,$3,$4,$5,$6}' refGene.bed >> refGene.TSS.bed
+
+awk 'BEGIN{FS=OFS="\t"}($6=="+"){print $1,$2,$2,$4,$5,$6}' refGene_hg19.bed > refGene.TSS_hg19.bed
+awk 'BEGIN{FS=OFS="\t"}($6=="-"){print $1,$3,$3,$4,$5,$6}' refGene_hg19.bed >> refGene.TSS_hg19.bed
+
+3. Use slopBed to increase the size of each feature (TSS) to define a promoter region around the TSS ([-2000,+500])
+slopBed -i refGene.TSS.bed -l 2000 -r 500 -s  -g chromInfo.txt  | sort -k1,1 -k2,2n -k3,3n -u | sortBed > refGene_Prom_2000_500.bed
+
+slopBed -i refGene.TSS_hg19.bed -l 2000 -r 2000 -s -g /home/yanzhu/blueridge/refGene_Prom/chromInfo_hg19.txt | sort -k1,1 -k2,2n -k3,3n -u | sortBed > refGene_Prom_2000_2000_hg19.bed
+
+Intersecting promoter regions with exp/gs
+To obtain only MACS peaks (get rid of first 6 columns info from refGene_Prom_2000_2000.bed)
+intersectBed -wa -wb -a  /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed -b xxx.bed | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$11}' > xxx_prom_intersect.bed
+
+Intersecting promoter regions with exp/gs (macs2, p-value)
+To obtain only MACS peaks (get rid of first 6 columns info from refGene_Prom_2000_2000.bed)
+intersectBed -wa -wb -a  /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed -b exp/gs.narrowPeak | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$14}' > exp/gs_prom_intersect.bed
+
+Intersecting promoter regions with exp/gs (macs2, idr)
+To obtain only MACS peaks (get rid of first 6 columns info from refGene_Prom_2000_2000.bed)
+intersectBed -wa -wb -a  /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed -b exp/gs.narrowPeak | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$18}' > exp/gs_prom_intersect.bed
+
+Intersecting gs with exp for positive set
+To obtain only exp peaks(get rid of first 4 columns info from gs_prom_intersect_sorted.bed)
+Output only unique lines based on chrom/start/end (columns 1/2/3)
+Sort 4th column (p-value, or idr)
+intersectBed -wa -wb -a gs_prom_intersect.bed -b exp_prom_intersect.bed | awk 'BEGIN{FS=OFS="\t"}{print $5,$6,$7,$8}' | sort -k1,1 -k2,2n -k3,3n -u | sort -k4n > exp_x_gs_positive.sorted.bed
+
+Intersecting gs with exp for negative set
+Output only unique lines based on chrom/start/end (columns 1/2/3)
+Sort 4th column (p-value, or idr)
+intersectBed -v -a exp_prom_intersect.bed -b gs_prom_intersect.bed | sort -k1,1 -k2,2n -k3,3n -u | sort -k4n > exp_x_gs_negative.sorted.bed
+
+Preparing for ROCR input
+awk 'BEGIN{FS=OFS="\t"}{print $4, $5=1}' exp_x_gs_positive.sorted.bed > exp_x_gs_positive.pred.label.bed
+awk 'BEGIN{FS=OFS="\t"}{print $4, $5=0}' exp_x_gs_negative.sorted.bed > exp_x_gs_negative.pred.label.bed
+cat exp_x_gs_positive.pred.label.bed exp_x_gs_negative.pred.label.bed | awk 'BEGIN{FS=OFS="\t"}{print $1}' > exp_x_gs_pred.txt
+cat exp_x_gs_positive.pred.label.bed exp_x_gs_negative.pred.label.bed | awk 'BEGIN{FS=OFS="\t"}{print $2}' > exp_x_gs_label.txt
+
+ROCR
+# it allows two different plots in the same frame
+par(mfrow = c(1,2))
+# plot a ROC curve for a single prediction run
+# and color the curve according to cutoff.
+library(ROCR)
+data(pred,label)
+pred=read.table("exp_x_gs_pred.txt")
+label=read.table("exp_x_gs_label.txt")
+
+pred <- prediction(pred,label)
+perf <- performance(pred,"tpr", "fpr")
+
+pdf("exp_x_gs_ROC.pdf")
+plot(perf,colorize = TRUE)
+# plot a ROC curve for a single prediction run
+# with CI by bootstrapping and fitted curve
+library(verification)
+roc.plot(label,pred, xlab = "False
+positive rate",
+ylab = "True positive rate", main = NULL, CI = T, n.boot = 100, plot =
+"both", binormal = TRUE)
+
+# calculating AUC
+auc <- performance(pred,"auc")
+# now converting S4 class to vector
+auc <- unlist(slot(auc, "y.values"))
+# adding min and max ROC AUC to the center of the plot
+minauc<-min(round(auc, digits = 2))
+#maxauc<-max(round(auc, digits = 2))
+minauct <- paste(c("AUC = "),minauc,sep="")
+#maxauct <- paste(c("max(AUC) = "),maxauc,sep="")
+legend(0.3,0.6,c(minauct,"\n"),border="white",cex=1.7,box.col = "white")
+
+#Performance vs. cutoff
+
+perf <- performance(pred, "acc")
+plot(perf, avg= "vertical",
+     spread.estimate="boxplot",
+     show.spread.at= seq(0.1, 0.9, by=0.1))
+
+Compare first column of two files print overlap
+awk -F, 'FNR==NR {a[$1]; next}; $1 in a' small#row.file big#row.file
+
+./ROC GS_file EXP_file
+ROC
+#GS="SRX100530_ppr.IDR0.05.filt.12-col.bed"
+#EXP="gm_pol2_50K_2F_M_ppr.IDR0.05.filt.12-col.bed"
+
+GS="$1"
+EXP="$2"
+
+GS_PREFIX=$(echo ${GS}|awk -F'[.]' '{print $1}')
+EXP_PREFIX=$(echo ${EXP}|awk -F'[.]' '{print $1}')
+
+module load gcc
+
+intersectBed -wa -wb -a /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed -b ${GS} | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$18}' > ${GS_PREFIX}_prom_intersect.bed
+
+intersectBed -wa -wb -a /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed -b ${EXP} | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$18}' > ${EXP_PREFIX}_prom_intersect.bed
+
+intersectBed -wa -wb -a ${GS_PREFIX}_prom_intersect.bed -b ${EXP_PREFIX}_prom_intersect.bed | awk 'BEGIN{FS=OFS="\t"}{print $5,$6,$7,$8}' | sort -k1,1 -k2,2n -k3,3n -u | sort -k4n > ${EXP_PREFIX}_x_${GS_PREFIX}_positive.sorted.bed
+
+intersectBed -v -a ${EXP_PREFIX}_prom_intersect.bed -b ${GS_PREFIX}_prom_intersect.bed | sort -k1,1 -k2,2n -k3,3n -u | sort -k4n > ${EXP_PREFIX}_x_${GS_PREFIX}_negative.sorted.bed
+
+awk 'BEGIN{FS=OFS="\t"}{print $4, $5=1}' ${EXP_PREFIX}_x_${GS_PREFIX}_positive.sorted.bed > ${EXP_PREFIX}_x_${GS_PREFIX}_positive.pred.label.bed
+awk 'BEGIN{FS=OFS="\t"}{print $4, $5=0}' ${EXP_PREFIX}_x_${GS_PREFIX}_negative.sorted.bed > ${EXP_PREFIX}_x_${GS_PREFIX}_negative.pred.label.bed
+cat ${EXP_PREFIX}_x_${GS_PREFIX}_positive.pred.label.bed ${EXP_PREFIX}_x_${GS_PREFIX}_negative.pred.label.bed | awk 'BEGIN{FS=OFS="\t"}{print $1}' > ${EXP_PREFIX}_x_${GS_PREFIX}_pred.txt
+cat ${EXP_PREFIX}_x_${GS_PREFIX}_positive.pred.label.bed ${EXP_PREFIX}_x_${GS_PREFIX}_negative.pred.label.bed | awk 'BEGIN{FS=OFS="\t"}{print $2}' > ${EXP_PREFIX}_x_${GS_PREFIX}_label.txt
+
+module load intel
+
+Rscript ROC.R ${EXP_PREFIX}_x_${GS_PREFIX}_pred.txt ${EXP_PREFIX}_x_${GS_PREFIX}_label.txt ${EXP_PREFIX}_x_${GS_PREFIX}_ROC.pdf
+
+ROC.R
+args <- commandArgs(trailingOnly = TRUE)
+print(args)
+library(ROCR)
+pred=read.table(args[1])
+label=read.table(args[2])
+pred <- prediction(pred,label)
+perf <- performance(pred,"tpr", "fpr")
+pdf(args[3])
+plot(perf,colorize = TRUE)
+auc <- performance(pred,"auc")
+auc <- unlist(slot(auc, "y.values"))
+minauc<-min(round(auc, digits = 2))
+minauct <- paste(c("AUC = "),minauc,sep="")
+legend(0.3,0.6,c(minauct,"\n"),border="white",cex=1.7,box.col = "white")
+dev.off()

@@ -1,0 +1,735 @@
+QC
+library(MEDIPS)
+library(BSgenome.Hsapiens.UCSC.hg19)
+library("MEDIPSData")
+bam.file.gm.7.MeDIP = system.file("zhenning", "7.bam", package = "MEDIPSData")
+BSgenome="BSgenome.Hsapiens.UCSC.hg19"
+uniq=TRUE
+extend=300
+shift=0
+ws=100
+sr = MEDIPS.saturation(file = bam.file.gm.7.MeDIP, BSgenome =
+BSgenome, uniq = uniq, extend = extend, shift = shift, window_size =
+ws, nit = 10, nrit = 1, empty_bins = TRUE, rank = FALSE)
+pdf('Saturation.pdf')
+MEDIPS.plotSaturation(sr)
+cr = MEDIPS.seqCoverage(file = bam.file.gm.7.MeDIP, pattern = "CG",
+BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+pdf('SeqCoverage.pdf')
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="pie", cov.level =
+c(0,1, 2, 3, 4, 5))
+pdf('SeqCoverageHistogram.pdf')
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="hist", t = 15,
+main="Sequence pattern coverage, histogram")
+er = MEDIPS.CpGenrich(file = bam.file.gm.7.MeDIP, BSgenome = BSgenome,
+extend = extend, shift = shift, uniq = uniq)
+er
+dev.off()
+
+uniq=1 (only uniq reads)
+uniq=0 (all reads)
+
+library(MEDIPS)
+library(BSgenome.Hsapiens.UCSC.hg19)
+BSgenome="BSgenome.Hsapiens.UCSC.hg19"
+uniq=1
+extend=300
+shift=0
+ws=250
+
+bamfile_gm_0.5ng=c("0.5ng_1.bam","0.5ng_2.bam")
+gm_0.5ng=lapply(X=bamfile_gm_0.5ng, FUN=MEDIPS.createSet, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+save(gm_0.5ng,file="gm_0.5ng.RData")
+
+bamfile_gm_5ng=c("5ng_1.bam","5ng_2.bam")
+gm_5ng=lapply(X=bamfile_gm_5ng, FUN=MEDIPS.createSet, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+save(gm_5ng,file="gm_5ng.RData")
+
+bamfile_gm_10ng=c("10ng_1.bam","10ng_2.bam")
+gm_10ng=lapply(X=bamfile_gm_10ng, FUN=MEDIPS.createSet, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+save(gm_10ng,file="gm_10ng.RData")
+
+bamfile_gm_100ng=c("100ng_1.bam","100ng_2.bam")
+gm_100ng=lapply(X=bamfile_gm_100ng, FUN=MEDIPS.createSet, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+save(gm_100ng,file="gm_100ng.RData")
+
+CS = MEDIPS.couplingVector(pattern = "CG", refObj = gm_100ng[[1]])
+save(CS,file="CS.RData")
+
+bamfile_gm_all=c("0.5ng_1.bam","0.5ng_2.bam", "5ng_1.bam","5ng_2.bam", "10ng_1.bam","10ng_2.bam", "100ng_1.bam","100ng_2.bam" )
+
+gm_all=lapply(X=bamfile_gm_all, FUN=MEDIPS.createSet, BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq,window_size = ws)
+save(gm_all,file="gm_all.RData")
+
+promoter=read.table("/home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed")
+cgi_UCSC = read.table("/home/yanzhu/blueridge/refGene_Prom/UCSC_hg19_cpg.bed")
+
+cgi_model = read.table("/home/yanzhu/blueridge/refGene_Prom/model-based-cpg-islands-hg19.txt",
+header=F)
+gm_all_promoter=lapply(X=bamfile_gm_all, FUN=MEDIPS.createROIset , ROI=promoter, BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+save(gm_all_promoter,file="gm_all_promoter.RData")
+gm_all_cgi=lapply(X=bamfile_gm_all, FUN=MEDIPS.createROIset , ROI=cgi, BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+save(gm_all_cgi,file="gm_all_cgi.RData")
+
+samtools view -@ 16 -b -L  /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed 0.5ng_1.bam > 0.5ng_1_promoter.bam
+samtools view -@ 16  -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed 0.5ng_2.bam > 0.5ng_2_promoter.bam
+samtools view -@ 16  -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed 5ng_1.bam > 5ng_1_promoter.bam
+samtools view -@ 16  -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed 5ng_2.bam > 5ng_2_promoter.bam
+samtools view -@ 16  -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed 10ng_1.bam > 10ng_1_promoter.bam
+samtools view -@ 16  -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed 10ng_2.bam > 10ng_2_promoter.bam
+samtools view -@ 16  -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed 100ng_1.bam > 100ng_1_promoter.bam
+samtools view -@ 16  -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed 100ng_2.bam > 100ng_2_promoter.bam
+
+#Remove header of  model-based-cpg-islands-hg19.txt
+
+sed '1d' model-based-cpg-islands-hg19.txt > model_hg19_cpg.bed
+
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_hg19_cpg.bed 0.5ng_1.bam > 0.5ng_1_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_hg19_cpg.bed 0.5ng_2.bam > 0.5ng_2_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_hg19_cpg.bed 5ng_1.bam > 5ng_1_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_hg19_cpg.bed 5ng_2.bam > 5ng_2_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_hg19_cpg.bed 10ng_1.bam > 10ng_1_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_hg19_cpg.bed 10ng_2.bam > 10ng_2_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_hg19_cpg.bed 100ng_1.bam > 100ng_1_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_hg19_cpg.bed 100ng_2.bam > 100ng_2_model_cpg.bam
+
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_hg19_cpg.bed 0.5ng_1.bam > 0.5ng_1_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_hg19_cpg.bed 0.5ng_2.bam > 0.5ng_2_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_hg19_cpg.bed 5ng_1.bam > 5ng_1_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_hg19_cpg.bed 5ng_2.bam > 5ng_2_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_hg19_cpg.bed 10ng_1.bam > 10ng_1_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_hg19_cpg.bed 10ng_2.bam > 10ng_2_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_hg19_cpg.bed 100ng_1.bam > 100ng_1_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_hg19_cpg.bed 100ng_2.bam > 100ng_2_UCSC_cpg.bam
+
+bamfile_gm_all_promoter=c("0.5ng_1_promoter.bam","0.5ng_2_promoter.bam", "5ng_1_promoter.bam","5ng_2_promoter.bam", "10ng_1_promoter.bam","10ng_2_promoter.bam", "100ng_1_promoter.bam","100ng_2_promoter.bam")
+bamfile_gm_all_model_cpg=c("0.5ng_1_model_cpg.bam","0.5ng_2_model_cpg.bam", "5ng_1_model_cpg.bam","5ng_2_model_cpg.bam", "10ng_1_model_cpg.bam","10ng_2_model_cpg.bam", "100ng_1_model_cpg.bam","100ng_2_model_cpg.bam")
+bamfile_gm_all_UCSC_cpg=c("0.5ng_1_UCSC_cpg.bam","0.5ng_2_UCSC_cpg.bam", "5ng_1_UCSC_cpg.bam","5ng_2_UCSC_cpg.bam", "10ng_1_UCSC_cpg.bam","10ng_2_UCSC_cpg.bam", "100ng_1_UCSC_cpg.bam","100ng_2_UCSC_cpg.bam")
+
+gm_all_promoter=lapply(X=bamfile_gm_all_promoter, FUN=MEDIPS.createSet, BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq,window_size = ws)
+save(gm_all_promoter,file="gm_all_promoter.RData")
+gm_all_model_cpg=lapply(X=bamfile_gm_all_model_cpg, FUN=MEDIPS.createSet, BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq,window_size = ws)
+save(gm_all_model_cpg,file="gm_all_model_cpg.RData")
+gm_all_UCSC_cpg=lapply(X=bamfile_gm_all_UCSC_cpg, FUN=MEDIPS.createSet, BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq,window_size = ws)
+save(gm_all_UCSC_cpg,file="gm_all_UCSC_cpg.RData")
+
+pdf('Calibration.pdf')
+MEDIPS.plotCalibrationPlot(CSet = CS, main = "Calibration Plot", MSet
+= gm_100ng[[1]], rpkm = TRUE, xrange = TRUE)
+
+cor.matrix = MEDIPS.correlation(MSets = c(gm_0.5ng,gm_5ng,gm_10ng,gm_100ng), plot = T, method = "pearson")
+save(cor.matrix,file="cor.matrix.RData")
+
+for (i in 1:length(gm_all)) {
+png(paste("Calibration_",i,".png",sep=""))
+MEDIPS.plotCalibrationPlot(CSet = CS, MSet = gm_all[[i]], rpkm = TRUE, xrange = TRUE)
+dev.off()
+}
+
+for (i in 1:length(bamfile_gm_all)) {
+pdf(paste("Saturation_",i,".pdf",sep=""))
+sr=MEDIPS.saturation(file= bamfile_gm_all[i], BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq,window_size = ws, nit=10, nrit=1, empty_bins=TRUE, rank=FALSE)
+MEDIPS.plotSaturation(sr)
+dev.off()
+}
+
+for (i in 1:length(bamfile_gm_all)) {
+pdf(paste("SeqCoverage_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_gm_all[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="pie", cov.level = c(0,1, 2, 3, 4, 5))
+dev.off()
+}
+
+for (i in 1:length(bamfile_gm_all_promoter)) {
+pdf(paste("SeqCoverage_Promoter_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_gm_all_promoter[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="pie", cov.level = c(0,1, 2, 3, 4, 5))
+dev.off()
+}
+
+for (i in 1:length(bamfile_gm_all_model_cpg)) {
+pdf(paste("SeqCoverage_model_cpg_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_gm_all_model_cpg[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="pie", cov.level = c(0,1, 2, 3, 4, 5))
+dev.off()
+}
+
+for (i in 1:length(bamfile_gm_all_UCSC_cpg)) {
+pdf(paste("SeqCoverage_UCSC_cpg_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_gm_all_UCSC_cpg[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="pie", cov.level = c(0,1, 2, 3, 4, 5))
+dev.off()
+}
+
+for (i in 1:length(bamfile_gm_all)) {
+pdf(paste("SeqCoverageHistogram_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_gm_all[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="hist", t = 15)
+dev.off()
+}
+
+for (i in 1:length(bamfile_gm_all)) {
+er = MEDIPS.CpGenrich(file = bamfile_gm_all[i], BSgenome = BSgenome,
+extend = extend, shift = shift, uniq = uniq)
+write.table(er, file = "CpG_Enrichment.bed", append=T, quote =F, sep="\t", row.names=F, col.names=!file.exists("CpG_Enrichment.bed"))
+}
+
+multiBamSummary BED-file --BED /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed --bamfiles 0.5ng_1.sorted.bam 0.5ng_2.sorted.bam 5ng_1.sorted.bam 5ng_2.sorted.bam 10ng_1.sorted.bam 10ng_2.sorted.bam 100ng_1.sorted.bam 100ng_2.sorted.bam --labels 0.5ng_1 0.5ng_2 5ng_1 5ng_2 10ng_1 10ng_2 100ng_1 100ng_2 -out results_promoter.npz -p max
+
+plotCorrelation --corData results_promoter.npz --plotFile heatmap_promoter.pdf --corMethod pearson --whatToPlot heatmap --skipZeros --removeOutliers --outFileCorMatrix pearson_cor_heatmap_promoter --plotTitle "Pearson Correlation of Read Counts"
+
+Correlation
+library(MEDIPS)
+library(BSgenome.Hsapiens.UCSC.hg19)
+BSgenome="BSgenome.Hsapiens.UCSC.hg19"
+uniq=TRUE
+extend=300
+shift=0
+ws=100
+
+bamfile_gm_5ng=c("/work/blueridge/yanzhu/zhenning/medips/gm_5ng_rep1.bam","/work/blueridge/yanzhu/zhenning/medips/gm_5ng_rep2.bam","/work/blueridge/yanzhu/zhenning/medips/gm_5ng_rep3.bam","/work/blueridge/yanzhu/zhenning/medips/gm_5ng_rep4.bam")
+
+gm_5ng=lapply(X=bamfile_gm_5ng, FUN=MEDIPS.createSet, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+
+save(gm_5ng,file="/work/blueridge/yanzhu/zhenning/medips/gm_5ng.RData")
+
+bamfile_gm_10ng=c("/work/blueridge/yanzhu/zhenning/medips/gm_10ng_rep1.bam","/work/blueridge/yanzhu/zhenning/medips/gm_10ng_rep2.bam","/work/blueridge/yanzhu/zhenning/medips/gm_10ng_rep3.bam","/work/blueridge/yanzhu/zhenning/medips/gm_10ng_rep4.bam")
+
+gm_10ng=lapply(X=bamfile_gm_10ng, FUN=MEDIPS.createSet, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+
+save(gm_10ng,file="/work/blueridge/yanzhu/zhenning/medips/gm_10ng.RData")
+
+bamfile_gm_100ng=c("/work/blueridge/yanzhu/zhenning/medips/gm_100ng_rep1.bam","/work/blueridge/yanzhu/zhenning/medips/gm_100ng_rep2.bam","/work/blueridge/yanzhu/zhenning/medips/gm_100ng_rep3.bam")
+
+gm_100ng=lapply(X=bamfile_gm_100ng, FUN=MEDIPS.createSet, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+
+save(gm_100ng,file="/work/blueridge/yanzhu/zhenning/medips/gm_100ng.RData")
+
+bamfile_gm_0.5ng=c("/work/blueridge/yanzhu/zhenning/medips/gm_0.5ng_rep1.bam","/work/blueridge/yanzhu/zhenning/medips/gm_0.5ng_rep2.bam","/work/blueridge/yanzhu/zhenning/medips/gm_0.5ng_rep3.bam")
+
+gm_0.5ng=lapply(X=bamfile_gm_0.5ng, FUN=MEDIPS.createSet, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+
+save(gm_0.5ng,file="/work/blueridge/yanzhu/zhenning/medips/gm_0.5ng.RData")
+
+bamfile_gm_1ng=c("/work/blueridge/yanzhu/zhenning/medips/gm_1ng_rep1.bam","/work/blueridge/yanzhu/zhenning/medips/gm_1ng_rep2.bam","/work/blueridge/yanzhu/zhenning/medips/gm_1ng_rep3.bam")
+
+gm_1ng=lapply(X=bamfile_gm_1ng, FUN=MEDIPS.createSet, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+
+save(gm_1ng,file="/work/blueridge/yanzhu/zhenning/medips/gm_1ng.RData")
+
+bamfile_gm_5ng_input="/work/blueridge/yanzhu/zhenning/medips/gm_5ng_input.bam"
+
+gm_5ng_input=MEDIPS.createSet(file = bamfile_gm_5ng_input, BSgenome =
+BSgenome, extend = extend, shift = shift, uniq = uniq,window_size =
+ws)
+
+save(gm_5ng_input,file="/work/blueridge/yanzhu/zhenning/medips/gm_5ng_input.RData")
+
+bamfile_hb_5ng_hmedip=c("/work/blueridge/yanzhu/zhenning/medips/hb_5ng_hmedip_rep1.bam","/work/blueridge/yanzhu/zhenning/medips/hb_5ng_hmedip_rep2.bam")
+
+hb_5ng_hmedip=lapply(X=bamfile_hb_5ng_hmedip, FUN=MEDIPS.createSet,
+BSgenome = BSgenome, extend = extend, shift = shift, uniq =
+uniq,window_size = ws)
+
+save(hb_5ng_hmedip,file="/work/blueridge/yanzhu/zhenning/medips/hb_5ng_hmedip.RData")
+
+bamfile_hb_50ng_hmedip=c("/work/blueridge/yanzhu/zhenning/medips/hb_50ng_hmedip_rep1.bam","/work/blueridge/yanzhu/zhenning/medips/hb_50ng_hmedip_rep2.bam","/work/blueridge/yanzhu/zhenning/medips/hb_50ng_hmedip_rep3.bam")
+
+hb_50ng_hmedip=lapply(X=bamfile_hb_50ng_hmedip, FUN=MEDIPS.createSet,
+BSgenome = BSgenome, extend = extend, shift = shift, uniq =
+uniq,window_size = ws)
+
+save(hb_50ng_hmedip,file="/work/blueridge/yanzhu/zhenning/medips/hb_50ng_hmedip.RData")
+
+bamfile_hb_5ng_hmedip_inupt="/work/blueridge/yanzhu/zhenning/medips/hb_5ng_hmedip_inupt.bam"
+
+hb_5ng_hmedip_inupt=MEDIPS.createSet(file =
+bamfile_hb_5ng_hmedip_inupt, BSgenome = BSgenome, extend = extend,
+shift = shift, uniq = uniq,window_size = ws)
+
+save(hb_5ng_hmedip_inupt,file="/work/blueridge/yanzhu/zhenning/medips/hb_5ng_hmedip_inupt.RData")
+
+CS = MEDIPS.couplingVector(pattern = "CG", refObj = gm_5ng[[1]])
+save(CS,file="/work/blueridge/yanzhu/zhenning/medips/CS.RData")
+cor.matrix = MEDIPS.correlation(MSets =
+c(gm_5ng,gm_10ng,gm_100ng,gm_0.5ng,gm_1ng,gm_5ng_input,hb_5ng_hmedip,hb_50ng_hmedip,hb_5ng_hmedip_inupt),
+plot = T, method = "pearson")
+save(cor.matrix,file="/work/blueridge/yanzhu/zhenning/medips/cor.matrix.RData")
+
+load("/work/blueridge/yanzhu/zhenning/medips/gm_5ng.RData")
+load("/work/blueridge/yanzhu/zhenning/medips/gm_10ng.RData")
+load("/work/blueridge/yanzhu/zhenning/medips/gm_100ng.RData")
+load("/work/blueridge/yanzhu/zhenning/medips/gm_0.5ng.RData")
+load("/work/blueridge/yanzhu/zhenning/medips/gm_1ng.RData")
+load("/work/blueridge/yanzhu/zhenning/medips/gm_5ng_input.RData")
+
+load("/work/blueridge/yanzhu/zhenning/medips/hb_5ng_hmedip.RData")
+load("/work/blueridge/yanzhu/zhenning/medips/hb_50ng_hmedip.RData")
+load("/work/blueridge/yanzhu/zhenning/medips/hb_5ng_hmedip_inupt.RData")
+
+load("/work/blueridge/yanzhu/zhenning/medips/CS.RData")
+load("/work/blueridge/yanzhu/zhenning/medips/cor.matrix.RData")
+
+library(BSgenome.Mmusculus.UCSC.mm10)
+BSgenome="BSgenome.Mmusculus.UCSC.mm10"
+uniq=1
+extend=300
+shift=0
+ws=250
+load("mouse_6w.RData")
+load("mouse_16w.RData")
+load("mouse_23w.RData")
+cor.matrix = MEDIPS.correlation(MSets = c(mouse_6w, mouse_16w, mouse_23w), plot = F, method = "pearson")
+save(cor.matrix,file="cor.matrix.RData")
+
+levelplot(full, main="Genome-wide correlations", xlab="", ylab="", col.regions=rgb.palette(120), cuts=100, at=seq(0.5,1,0.01), font=2, scales=list(font=2,x=list(labels=c("6wk_rep1","6wk_rep2","16wk_rep1","16wk_rep2","23wk_rep1","23wk_rep2"),rot=45,font=2),y=list(labels=c( "6wk_rep1","6wk_rep2","16wk_rep1","16wk_rep2","23wk_rep1","23wk_rep2" ),font=2)))
+
+Correlation Heatmap
+upper=cor.matrix
+upper[lower.tri(upper)]<-0
+upper_no_diag=cor.matrix
+upper_no_diag[lower.tri(upper,diag=T)]<-0
+lower=t(upper_no_diag)
+full=upper+lower
+
+full=read.table("CorMatrix")
+full<-data.matrix(full)
+
+library(lattice)
+rgb.palette <- colorRampPalette(c("blue", "yellow"), space = "rgb")
+levelplot(full, main="Genome-wide correlations", xlab="", ylab="", col.regions=rgb.palette(120), cuts=100, at=seq(0,1,0.01))
+
+levelplot(full, main="Genome-wide correlations", xlab="", ylab="", col.regions=rgb.palette(120), cuts=100, at=seq(0.5,1,0.01), font=2, scales=list(font=2,x=list(labels=c("0.5 ng_rep1","0.5 ng_rep2","5 ng_rep1","5 ng_rep2","10 ng_rep1","10 ng_rep2","100 ng_ref"),rot=45,font=2),y=list(labels=c("0.5 ng_rep1","0.5 ng_rep2","5 ng_rep1","5 ng_rep2","10 ng_rep1","10 ng_rep2","100 ng_ref"),font=2)))
+
+levelplot(full, main="Genome-wide correlations", xlab="", ylab="", col.regions=rgb.palette(120), cuts=100, at=seq(0.5,1,0.01), font=2, scales=list(font=2,x=list(labels=c("gm_pol2_ENCODE","1000K_1F_S_rep1","1000K_1F_S_rep2", "100K_1F_M_rep1", "100K_1F_M_rep2", "100K_2F_M_rep1","100K_2F_M_rep2","50K_1F_M_rep1","50K_1F_M_rep2","50K_2F_M_rep1","50K_2F_M_rep2"),rot=45,font=2),y=list(labels=c ( "gm_pol2_ENCODE","1000K_1F_S_rep1","1000K_1F_S_rep2", "100K_1F_M_rep1", "100K_1F_M_rep2", "100K_2F_M_rep1","100K_2F_M_rep2","50K_1F_M_rep1","50K_1F_M_rep2","50K_2F_M_rep1","50K_2F_M_rep2" ) ,font=2)))
+
+MA-Plot
+cancer_vs_normal=MEDIPS.meth(MSet1 = mouse_cancer, MSet2 = mouse_normal, CSet = CS_mouse, p.adj = "bonferroni", diff.method = "edgeR", MeDIP = T, CNV = F, minRowSum = 10)
+
+save(cancer_vs_normal,file="/work/blueridge/yanzhu/zhenning/medips/cancer_vs_normal.RData")
+
+dm1=cancer_vs_normal$edgeR.adj.p.value<0.1
+dm2=cancer_vs_normal$edgeR.p.value<0.01
+
+pdf("MA_Plot.pdf")
+smoothScatter(cancer_vs_normal$edgeR.logCPM,cancer_vs_normal$edgeR.logFC,ylim=c(-4,4),xlim=c(-3,4), xlab="avg log methylation", ylab="methylation logFC", main="MA Plot")
+abline(h=-4:4, col="grey",lty=2)
+abline(v=c(-2,0,2,4), col="grey",lty=2)
+
+points(cancer_vs_normal$edgeR.logCPM[dm2],cancer_vs_normal$edgeR.logFC[dm2], col="orange",pch=".")
+points(cancer_vs_normal$edgeR.logCPM[dm1],cancer_vs_normal$edgeR.logFC[dm1], col="red",pch=4)
+
+dev.off()
+
+Fraction_DMR
+m_cgi=read.table("/work/blueridge/yanzhu/zhenning/medips/mm10/model-based-cpg-islands-mm10.txt", header=T)
+m_exon=read.table("/work/blueridge/yanzhu/zhenning/medips/mm10/RefSeq_mm10_known_genes_exons.txt")
+m_intron=read.table("/work/blueridge/yanzhu/zhenning/medips/mm10/RefSeq_mm10_known_genes_introns.txt")
+m_prom=read.table("/work/blueridge/yanzhu/zhenning/medips/mm10/refGene_Prom_2000_500_mm10.txt")
+m_exon$nr=1:dim(m_exon)[1]
+m_prom$nr=1:dim(m_prom)[1]
+m_intron$nr=1:dim(m_intron)[1]
+
+results_CGI=MEDIPS.selectROIs(results=cancer_vs_normal, rois=m_cgi)
+results_exon=MEDIPS.selectROIs(results=cancer_vs_normal, rois=m_exon)
+results_intron=MEDIPS.selectROIs(results=cancer_vs_normal, rois=m_intron)
+results_prom=MEDIPS.selectROIs(results=cancer_vs_normal, rois=m_prom)
+results_CGI_prom=MEDIPS.selectROIs(results=results_CGI, rois=m_prom)
+
+reg=c("all regions", "Introns", "Exons","Promoter" , "CpG Islands" , "CpG Island \nPromoter")
+DMR_rel=matrix(NA, 6,2, dimnames=list(reg, c("hypomethylated", "hypermethylated")))
+
+f=!is.na(cancer_vs_normal$edgeR.p.value)
+DMR_rel[1,1]=sum(cancer_vs_normal$edgeR.p.value[f]<.01 & cancer_vs_normal$edgeR.logFC[f]<0)/dim(cancer_vs_normal)[1]
+DMR_rel[1,2]=sum(cancer_vs_normal$edgeR.p.value[f]<.01 & cancer_vs_normal$edgeR.logFC[f]>0)/dim(cancer_vs_normal)[1]
+
+f=!is.na(results_intron$edgeR.p.value)
+DMR_rel[2,1]=sum(results_intron$edgeR.p.value[f]<.01 &results_intron$edgeR.logFC[f]<0)/dim(results_intron)[1]
+DMR_rel[2,2]=sum(results_intron$edgeR.p.value[f]<.01 &results_intron$edgeR.logFC[f]>0)/dim(results_intron)[1]
+
+f=!is.na(results_exon$edgeR.p.value)
+DMR_rel[3,1]=sum(results_exon$edgeR.p.value[f]<.01 &results_exon$edgeR.logFC[f]<0)/dim(results_exon)[1]
+DMR_rel[3,2]=sum(results_exon$edgeR.p.value[f]<.01 &results_exon$edgeR.logFC[f]>0)/dim(results_exon)[1]
+
+f=!is.na(results_prom$edgeR.p.value)
+DMR_rel[4,1]=sum(results_prom$edgeR.p.value[f]<.01 &results_prom$edgeR.logFC[f]<0)/dim(results_prom)[1]
+DMR_rel[4,2]=sum(results_prom$edgeR.p.value[f]<.01 &results_prom$edgeR.logFC[f]>0)/dim(results_prom)[1]
+
+f=!is.na(results_CGI$edgeR.p.value)
+DMR_rel[5,1]=sum(results_CGI$edgeR.p.value[f]<.01 &results_CGI$edgeR.logFC[f]<0)/dim(results_CGI)[1]
+DMR_rel[5,2]=sum(results_CGI$edgeR.p.value[f]<.01 &results_CGI$edgeR.logFC[f]>0)/dim(results_CGI)[1]
+
+f=!is.na(results_CGI_prom$edgeR.p.value)
+DMR_rel[6,1]=sum(results_CGI_prom$edgeR.p.value[f]<.01 &results_CGI_prom$edgeR.logFC[f]<0)/dim(results_CGI_prom)[1]
+DMR_rel[6,2]=sum(results_CGI_prom$edgeR.p.value[f]<.01 &results_CGI_prom$edgeR.logFC[f]>0)/dim(results_CGI_prom)[1]
+
+pdf("Fraction_DMR.pdf")
+barplot(t(DMR_rel)*100,  main="Fraction of differentially methylated regions", beside=T, ylab="Fraction of 250 pb windows [%]")
+legend("topleft", c("hypomethylated", "hypermethylated"), fill=grey.colors(2))
+dev.off()
+
+Bisulfite Validation
+bsv=read.table("BisSeq_regions.txt",sep="\t", header=T)
+
+columns=c("CF","edgeR.logFC","edgeR.p.value", "mouse_cancer_rep1.bam.rms", "mouse_normal_rep1.bam.rms", "mouse_cancer_rep1.bam.rpkm", "mouse_normal_rep1.bam.rpkm", "mouse_cancer_rep1.bam.counts", "mouse_normal_rep1.bam.counts")
+
+mr.roi=MEDIPS.selectROIs(results=cancer_vs_normal , rois=bsv[,c(3:5,1)], columns=columns,summarize="avg")
+
+if(all(mr.roi$ROI==bsv[,1])){
+mr.roi=cbind(mr.roi, bsv)
+}
+
+BS=rep(c("BS_ad5","BS_n5"),2)
+sample=rep(c("Tumor","Normal"),2)
+method=c(rep("rms",2),rep("rkpm",2),rep("count",2))
+
+pdf("BS_validation.pdf")
+
+par(mfrow=c(2,2))
+color=rep("black", dim(mr.roi)[1])
+color[mr.roi$CF>= quantile(mr.roi$CF,.75)]="red"
+color[mr.roi$CF<= quantile(mr.roi$CF,.25)]="blue"
+
+for(i in 1:4){
+  val=mr.roi[,c(columns[i+3],BS[i]) ]
+  val=val[!is.na(rowSums(val)),]
+  co=cor(val[,1],val[,2])
+  plot(val[,1],val[,2], sub=paste("correlation:", round(co,3)), main=sample[i], ylim=c(0,100),ylab=paste(sample[i], "BiSulfit [%]"), xlab=paste(sample[i], "MeDIP-Seq", method[i]), col=color)
+  abline(lm(val[,2]~val[,1]))
+}
+
+legend("bottomright", legend=c("lower quantile CF", "25%-75% CF", "upper quantile CF"), fill=c("blue", "black", "red"))
+dev.off()
+
+Comparing rrbs %methylation to MEDIP rkpm and rms at promoter region
+library(MEDIPS)
+library(BSgenome.Hsapiens.UCSC.hg19)
+BSgenome="BSgenome.Hsapiens.UCSC.hg19"
+uniq=TRUE
+extend=300
+shift=0
+ws=250
+
+bamfile_b2_9="b2_9.bam"
+b2_9=MEDIPS.createSet(file = bamfile_b2_9, BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq,window_size = ws)
+CS = MEDIPS.couplingVector(pattern = "CG", refObj = b2_9)
+result=MEDIPS.meth(MSet1 = b2_9, CSet = CS_mouse, MeDIP = T)
+
+bsv=read.table("percmeth_rrbs_ref_prom_ID.txt", header=T)
+columns=c("CF","b2_9.bam.rms","b2_9.bam.rpkm","b2_9.bam.counts")
+mr.roi=MEDIPS.selectROIs(results=result, rois=bsv[,c(2:4,1)], columns=columns,summarize="avg")
+if(all(mr.roi$ROI==bsv[,1])){mr.roi=cbind(mr.roi, bsv)}
+
+BS=rep(c("BS"),2)
+sample=rep(c("Cao_100ng"),2)
+method=c(rep("rms",1),rep("rkpm",1),rep("count",1))
+
+pdf("BS_validation.pdf")
+
+par(mfrow=c(2,1))
+color=rep("black", dim(mr.roi)[1])
+color[mr.roi$CF>= quantile(mr.roi$CF,.75)]="red"
+color[mr.roi$CF<= quantile(mr.roi$CF,.25)]="blue"
+
+for(i in 1:2){
+  val=mr.roi[,c(columns[i+1],BS[i]) ]
+  val=val[!is.na(rowSums(val)),]
+  co=cor(val[,1],val[,2])
+  plot(val[,1],val[,2], sub=paste("correlation:", round(co,3)), main=sample[i], ylim=c(0,100),ylab=paste(sample[i], "BiSulfit [%]"), xlab=paste(sample[i], "MeDIP-Seq", method[i]), col=color)
+  abline(lm(val[,2]~val[,1]))
+}
+legend("bottomright", legend=c("lower quantile CF", "25%-75% CF", "upper quantile CF"), fill=c("blue", "black", "red"))
+dev.off()
+
+Selecting significant windows base on FDR<10%
+mouse_23WT1_vs_mouse_6WN2.s=MEDIPS.selectSig(results =mouse_23WT1_vs_mouse_6WN2,p.value = 0.1, adj = T, ratio = NULL, bg.counts = NULL, CNV = F)
+Total number of windows: 10923515
+Number of windows tested for differential methylation: 216777
+Remaining number of windows with adjusted p.value<=0.1: 547
+
+Grep logFC>0 for hypermethylation
+mouse_23WT1_vs_mouse_6WN2.s.gain=mouse_23WT1_vs_mouse_6WN2.s[which(mouse_23WT1_vs_mouse_6WN2.s[, grep("logFC", colnames(mouse_23WT1_vs_mouse_6WN2.s))] > 0),]
+
+Merging neighboring significant windows
+
+mouse_23WT1_vs_mouse_6WN2.s.gain.m=MEDIPS.mergeFrames(frames =mouse_23WT1_vs_mouse_6WN2.s.gain, distance = 1)
+Number of merged frames: 21
+
+Merging neighboring significant windows for hypermethylation+hypomethylation
+mouse_23WT1_vs_mouse_6WN2.s.m=MEDIPS.mergeFrames(frames =mouse_23WT1_vs_mouse_6WN2.s, distance = 1)
+Number of merged frames: 300
+
+Mouse Data Analysis
+
+library(MEDIPS)
+library(BSgenome.Mmusculus.UCSC.mm10)
+BSgenome="BSgenome.Mmusculus.UCSC.mm10"
+uniq=1
+extend=300
+shift=0
+ws=250
+
+mouse_18WT2_vs_mouse_6WN_FDR=MEDIPS.meth(MSet1 = mouse_23WT, MSet2 =
+mouse_6WN,CSet = CS, p.adj = "fdr", diff.method = "edgeR",
+MeDIP = T, CNV = F,minRowSum = 10)
+save(mouse_18WT2_vs_mouse_6WN_FDR,file="mouse_18WT2_vs_mouse_6WN_FDR.RData")
+dm1=mouse_18WT2_vs_mouse_6WN_FDR$edgeR.adj.p.value<0.1
+dm2=mouse_18WT2_vs_mouse_6WN_FDR$edgeR.p.value<0.01
+
+write.table(mouse_18WT2_vs_mouse_6WN_FDR[which(dm1),],
+file="mouse_18WT2_vs_mouse_6WN_FDR.tsv", sep="\t", quote=F,
+row.names=F, col.names=T)
+
+write.table(mouse_18WT2_vs_mouse_6WN_FDR[which(dm2),],
+file="mouse_18WT2_vs_mouse_6WN_Pvalue.tsv", sep="\t", quote=F,
+row.names=F, col.names=T)
+
+pdf("MA_Plot_18WT2_vs_6WN_FDR.pdf")
+smoothScatter(mouse_18WT2_vs_mouse_6WN_FDR$edgeR.logCPM,mouse_18WT2_vs_mouse_6WN_FDR$edgeR.logFC,ylim=c(-8,8),xlim=c(0,6),
+xlab="avg log methylation", ylab="methylation logFC", main="MA Plot")
+abline(h=-8:8, col="grey",lty=2)
+abline(v=c(0,2,4,6), col="grey",lty=2)
+points(mouse_18WT2_vs_mouse_6WN_FDR$edgeR.logCPM[dm2],mouse_18WT2_vs_mouse_6WN_FDR$edgeR.logFC[dm2],
+col="orange",pch=".")
+points(mouse_18WT2_vs_mouse_6WN_FDR$edgeR.logCPM[dm1],mouse_18WT2_vs_mouse_6WN_FDR$edgeR.logFC[dm1],
+col="red",pch=4)
+dev.off()
+
+sum(mouse_18WT2_vs_mouse_6WN_FDR$edgeR.p.value<0.01,na.rm=TRUE)
+sum(mouse_18WT2_vs_mouse_6WN_FDR$edgeR.adj.p.value<0.1,na.rm=TRUE)
+
+m_cgi=read.table("/home/yanzhu/blueridge/model-based-cpg-islands/mm10/model-based-cpg-islands-mm10.txt",
+header=T)
+m_exon=read.table("/home/yanzhu/blueridge/model-based-cpg-islands/mm10/RefSeq_mm10_known_genes_exons.txt")
+m_intron=read.table("/home/yanzhu/blueridge/model-based-cpg-islands/mm10/RefSeq_mm10_known_genes_introns.txt")
+m_prom=read.table("/home/yanzhu/blueridge/model-based-cpg-islands/mm10/refGene_Prom_2000_500_mm10.txt")
+m_exon$nr=1:dim(m_exon)[1]
+m_prom$nr=1:dim(m_prom)[1]
+m_intron$nr=1:dim(m_intron)[1]
+
+results_CGI=MEDIPS.selectROIs(results=mouse_18WT2_vs_mouse_6WN_FDR, rois=m_cgi)
+results_exon=MEDIPS.selectROIs(results=mouse_18WT2_vs_mouse_6WN_FDR, rois=m_exon)
+results_intron=MEDIPS.selectROIs(results=mouse_18WT2_vs_mouse_6WN_FDR,
+rois=m_intron)
+results_prom=MEDIPS.selectROIs(results=mouse_18WT2_vs_mouse_6WN_FDR, rois=m_prom)
+results_CGI_prom=MEDIPS.selectROIs(results=results_CGI, rois=m_prom)
+
+reg=c("all regions", "Introns", "Exons","Promoter" , "CpG Islands" ,
+"CpG Island \nPromoter")
+DMR_rel=matrix(NA, 6,2, dimnames=list(reg, c("hypomethylated",
+"hypermethylated")))
+
+f=!is.na(mouse_18WT2_vs_mouse_6WN_FDR$edgeR.p.value)
+DMR_rel[1,1]=sum(mouse_18WT2_vs_mouse_6WN_FDR$edgeR.p.value[f]<.01 &
+mouse_18WT2_vs_mouse_6WN_FDR$edgeR.logFC[f]<0)/dim(mouse_18WT2_vs_mouse_6WN_FDR)[1]
+DMR_rel[1,2]=sum(mouse_18WT2_vs_mouse_6WN_FDR$edgeR.p.value[f]<.01 &
+mouse_18WT2_vs_mouse_6WN_FDR$edgeR.logFC[f]>0)/dim(mouse_18WT2_vs_mouse_6WN_FDR)[1]
+
+f=!is.na(results_intron$edgeR.p.value)
+DMR_rel[2,1]=sum(results_intron$edgeR.p.value[f]<.01
+&results_intron$edgeR.logFC[f]<0)/dim(results_intron)[1]
+DMR_rel[2,2]=sum(results_intron$edgeR.p.value[f]<.01
+&results_intron$edgeR.logFC[f]>0)/dim(results_intron)[1]
+
+f=!is.na(results_exon$edgeR.p.value)
+DMR_rel[3,1]=sum(results_exon$edgeR.p.value[f]<.01
+&results_exon$edgeR.logFC[f]<0)/dim(results_exon)[1]
+DMR_rel[3,2]=sum(results_exon$edgeR.p.value[f]<.01
+&results_exon$edgeR.logFC[f]>0)/dim(results_exon)[1]
+
+f=!is.na(results_prom$edgeR.p.value)
+DMR_rel[4,1]=sum(results_prom$edgeR.p.value[f]<.01
+&results_prom$edgeR.logFC[f]<0)/dim(results_prom)[1]
+DMR_rel[4,2]=sum(results_prom$edgeR.p.value[f]<.01
+&results_prom$edgeR.logFC[f]>0)/dim(results_prom)[1]
+
+f=!is.na(results_CGI$edgeR.p.value)
+DMR_rel[5,1]=sum(results_CGI$edgeR.p.value[f]<.01
+&results_CGI$edgeR.logFC[f]<0)/dim(results_CGI)[1]
+DMR_rel[5,2]=sum(results_CGI$edgeR.p.value[f]<.01
+&results_CGI$edgeR.logFC[f]>0)/dim(results_CGI)[1]
+
+f=!is.na(results_CGI_prom$edgeR.p.value)
+DMR_rel[6,1]=sum(results_CGI_prom$edgeR.p.value[f]<.01
+&results_CGI_prom$edgeR.logFC[f]<0)/dim(results_CGI_prom)[1]
+DMR_rel[6,2]=sum(results_CGI_prom$edgeR.p.value[f]<.01
+&results_CGI_prom$edgeR.logFC[f]>0)/dim(results_CGI_prom)[1]
+
+pdf("Fraction_DMR_18WT2_vs_6WN_FDR.pdf")
+barplot(t(DMR_rel)*100, main="Fraction of differentially methylated
+regions", beside=T, ylab="Fraction of 250 pb windows [%]")
+legend("topleft", c("hypomethylated", "hypermethylated"), fill=grey.colors(2))
+dev.off()
+
+mouse_18WT2_vs_mouse_6WN.s=MEDIPS.selectSig(results
+=mouse_18WT2_vs_mouse_6WN,p.value = 0.01, adj = F, ratio = NULL,
+bg.counts = NULL, CNV = F)
+
+mouse_18WT2_vs_mouse_6WN.s.m=MEDIPS.mergeFrames(frames=mouse_18WT2_vs_mouse_6WN.s,
+distance = 1)
+
+mouse_18WT2_vs_mouse_6WN.s.gain=mouse_18WT2_vs_mouse_6WN.s[which(mouse_18WT2_vs_mouse_6WN.s[,
+grep("logFC", colnames(mouse_18WT2_vs_mouse_6WN.s))] > 0),]
+
+mouse_18WT2_vs_mouse_6WN.s.loss=mouse_18WT2_vs_mouse_6WN.s[which(mouse_18WT2_vs_mouse_6WN.s[,
+grep("logFC", colnames(mouse_18WT2_vs_mouse_6WN.s))] < 0),]
+
+mouse_18WT2_vs_mouse_6WN.s.gain.m=MEDIPS.mergeFrames(frames=mouse_18WT2_vs_mouse_6WN.s.gain,
+distance = 1)
+
+mouse_18WT2_vs_mouse_6WN.s.loss.m=MEDIPS.mergeFrames(frames=mouse_18WT2_vs_mouse_6WN.s.loss,
+distance = 1)
+
+write.csv(mouse_18WT2_vs_mouse_6WN.s.m, file =
+"mouse_18WT2_vs_mouse_6WN.s.m.csv", quote =F, row.names=F)
+
+write.csv(mouse_18WT2_vs_mouse_6WN.s.gain.m, file =
+"mouse_18WT2_vs_mouse_6WN.s.gain.m.csv", quote =F, row.names=F)
+
+write.csv(mouse_18WT2_vs_mouse_6WN.s.loss.m, file =
+"mouse_18WT2_vs_mouse_6WN.s.loss.m.csv", quote =F, row.names=F)
+
+write.table(mouse_18WT2_vs_mouse_6WN.s.m, file =
+"mouse_18WT2_vs_mouse_6WN.s.m.bed", quote =F, sep="\t", row.names=F,
+col.names=F)
+
+write.table(mouse_18WT2_vs_mouse_6WN.s.gain.m, file =
+"mouse_18WT2_vs_mouse_6WN.s.gain.m.bed", quote =F, sep="\t",
+row.names=F, col.names=F)
+
+write.table(mouse_18WT2_vs_mouse_6WN.s.loss.m, file =
+"mouse_18WT2_vs_mouse_6WN.s.loss.m.bed", quote =F, sep="\t",
+row.names=F, col.names=F)
+
+mouse_18WT2_vs_mouse_6WN_FDR.s=MEDIPS.selectSig(results
+=mouse_18WT2_vs_mouse_6WN_FDR,p.value = 0.1, adj = T, ratio = NULL,
+bg.counts = NULL, CNV = F)
+
+mouse_18WT2_vs_mouse_6WN_FDR.s.m=MEDIPS.mergeFrames(frames=mouse_18WT2_vs_mouse_6WN_FDR.s,
+distance = 1)
+
+mouse_18WT2_vs_mouse_6WN_FDR.s.gain=mouse_18WT2_vs_mouse_6WN_FDR.s[which(mouse_18WT2_vs_mouse_6WN_FDR.s[,
+grep("logFC", colnames(mouse_18WT2_vs_mouse_6WN_FDR.s))] > 0),]
+
+mouse_18WT2_vs_mouse_6WN_FDR.s.loss=mouse_18WT2_vs_mouse_6WN_FDR.s[which(mouse_18WT2_vs_mouse_6WN_FDR.s[,
+grep("logFC", colnames(mouse_18WT2_vs_mouse_6WN_FDR.s))] < 0),]
+
+mouse_18WT2_vs_mouse_6WN_FDR.s.gain.m=MEDIPS.mergeFrames(frames=mouse_18WT2_vs_mouse_6WN_FDR.s.gain,
+distance = 1)
+
+mouse_18WT2_vs_mouse_6WN_FDR.s.loss.m=MEDIPS.mergeFrames(frames=mouse_18WT2_vs_mouse_6WN_FDR.s.loss,
+distance = 1)
+
+write.csv(mouse_18WT2_vs_mouse_6WN_FDR.s.m, file =
+"mouse_18WT2_vs_mouse_6WN_FDR.s.m.csv", quote =F, row.names=F)
+
+write.csv(mouse_18WT2_vs_mouse_6WN_FDR.s.gain.m, file =
+"mouse_18WT2_vs_mouse_6WN_FDR.s.gain.m.csv", quote =F, row.names=F)
+
+write.csv(mouse_18WT2_vs_mouse_6WN_FDR.s.loss.m, file =
+"mouse_18WT2_vs_mouse_6WN_FDR.s.loss.m.csv", quote =F, row.names=F)
+
+write.table(mouse_18WT2_vs_mouse_6WN_FDR.s.m, file =
+"mouse_18WT2_vs_mouse_6WN_FDR.s.m.bed", quote =F, sep="\t", row.names=F,
+col.names=F)
+
+write.table(mouse_18WT2_vs_mouse_6WN_FDR.s.gain.m, file =
+"mouse_18WT2_vs_mouse_6WN_FDR.s.gain.m.bed", quote =F, sep="\t",
+row.names=F, col.names=F)
+
+write.table(mouse_18WT2_vs_mouse_6WN_FDR.s.loss.m, file =
+"mouse_18WT2_vs_mouse_6WN_FDR.s.loss.m.bed", quote =F, sep="\t",
+row.names=F, col.names=F)
+
+QC
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_mm10.bed 6w_1.bam > 6w_1_promoter.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_mm10.bed 6w_2.bam > 6w_2_promoter.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_mm10.bed 16w_1.bam > 16w_1_promoter.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_mm10.bed 16w_2.bam > 16w_2_promoter.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_mm10.bed 23w_1.bam > 23w_1_promoter.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_mm10.bed 23w_2.bam > 23w_2_promoter.bam
+
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_mm10_cpg.bed 6w_1.bam > 6w_1_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_mm10_cpg.bed 6w_2.bam > 6w_2_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_mm10_cpg.bed 16w_1.bam > 16w_1_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_mm10_cpg.bed 16w_2.bam > 16w_2_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_mm10_cpg.bed 23w_1.bam > 23w_1_model_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/model_mm10_cpg.bed 23w_2.bam > 23w_2_model_cpg.bam
+
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_mm10_cpg.bed 6w_1.bam > 6w_1_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_mm10_cpg.bed 6w_2.bam > 6w_2_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_mm10_cpg.bed 16w_1.bam > 16w_1_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_mm10_cpg.bed 16w_2.bam > 16w_2_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_mm10_cpg.bed 23w_1.bam > 23w_1_UCSC_cpg.bam
+samtools view -@ 16 -b -L /home/yanzhu/blueridge/refGene_Prom/UCSC_mm10_cpg.bed 23w_2.bam > 23w_2_UCSC_cpg.bam
+
+bamfile_mouse_all=c("6w_1.bam", "6w_2.bam", "16w_1.bam", "16w_2.bam", "23w_1.bam", "23w_2.bam")
+bamfile_mouse_all_promoter=c("6w_1_promoter.bam", "6w_2_promoter.bam", "16w_1_promoter.bam", "16w_2_promoter.bam", "23w_1_promoter.bam", "23w_2_promoter.bam")
+bamfile_mouse_all_model_cpg=c("6w_1_model_cpg.bam", "6w_2_model_cpg.bam", "16w_1_model_cpg.bam", "16w_2_model_cpg.bam", "23w_1_model_cpg.bam", "23w_2_model_cpg.bam")
+bamfile_mouse_all_UCSC_cpg=c("6w_1_UCSC_cpg.bam", "6w_2_UCSC_cpg.bam", "16w_1_UCSC_cpg.bam", "16w_2_UCSC_cpg.bam", "23w_1_UCSC_cpg.bam", "23w_2_UCSC_cpg.bam")
+
+for (i in 1:length(bamfile_mouse_all)) {
+pdf(paste("Saturation_",i,".pdf",sep=""))
+sr=MEDIPS.saturation(file= bamfile_mouse_all[i], BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq,window_size = ws, nit=10, nrit=1, empty_bins=TRUE, rank=FALSE)
+MEDIPS.plotSaturation(sr)
+dev.off()
+}
+
+for (i in 1:length(bamfile_mouse_all)) {
+pdf(paste("SeqCoverage_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_mouse_all[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="pie", cov.level = c(0,1, 2, 3, 4, 5))
+dev.off()
+}
+
+for (i in 1:length(bamfile_mouse_all_promoter)) {
+pdf(paste("SeqCoverage_Promoter_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_mouse_all_promoter[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="pie", cov.level = c(0,1, 2, 3, 4, 5))
+dev.off()
+}
+
+for (i in 1:length(bamfile_mouse_all_model_cpg)) {
+pdf(paste("SeqCoverage_model_cpg_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_mouse_all_model_cpg[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="pie", cov.level = c(0,1, 2, 3, 4, 5))
+dev.off()
+}
+
+for (i in 1:length(bamfile_mouse_all_UCSC_cpg)) {
+pdf(paste("SeqCoverage_UCSC_cpg_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_mouse_all_UCSC_cpg[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="pie", cov.level = c(0,1, 2, 3, 4, 5))
+dev.off()
+}
+
+for (i in 1:length(bamfile_mouse_all)) {
+pdf(paste("SeqCoverageHistogram_",i,".pdf",sep=""))
+cr = MEDIPS.seqCoverage(file = bamfile_mouse_all[i], pattern = "CG", BSgenome = BSgenome, extend = extend, shift = shift, uniq = uniq)
+MEDIPS.plotSeqCoverage(seqCoverageObj=cr, type="hist", t = 15)
+dev.off()
+}
+
+for (i in 1:length(bamfile_mouse_all)) {
+er = MEDIPS.CpGenrich(file = bamfile_mouse_all[i], BSgenome = BSgenome,
+extend = extend, shift = shift, uniq = uniq)
+write.table(er, file = "CpG_Enrichment.bed", append=T, quote =F, sep="\t", row.names=F, col.names=!file.exists("CpG_Enrichment.bed"))
+}

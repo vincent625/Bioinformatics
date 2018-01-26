@@ -1,0 +1,273 @@
+Download data from Chicago
+wget -r ftp://clu:FXu7CNs2@fgfftp.uchicago.edu/FOLDER
+Browser based login: https://fgfftp.uchicago.edu/
+Your login name:   clu
+Your password:    FXu7CNs2
+
+Find file and move to a directory
+find ./ -name '*.sra' | xargs mv -t /lustre/work/blueridge/yanzhu/yan/medip/2016/06032016/Grimm
+Concatenate fastq files
+cat *.fastq >> 1.fastq
+
+use GSM to find SRR#
+grep ^SRR SRA_Accessions.tab | grep GSM
+
+SRA to fastq (sratoolkit)
+fastq-dump xxx.sra
+To see if SRA file is paired-ended
+sra-paired xxx.sra
+Extract paired-end reads from SRA file
+fastq-dump --split-3 xxx.sra
+
+Sickle trimming ( Illumina quality using CASAVA >= 1.8 is Sanger encoded )
+sickle se -f 1.fastq -t sanger -o trimmed_1.fastq
+
+Align to genome(Bowtie, paired-ended use -1 -2)
+bowtie -p 16 -m 1 -S -q /work/blueridge/yanzhu/BowtieIndexes/hg19 xxx.fastq xxx.sam
+
+Align to genome(Bowtie2, paired-ended use -1 -2)
+bowtie2 -p 16 -x /work/blueridge/yanzhu/BowtieIndexes/2/hg19 xxx.fastq > xxx.sam
+
+Align to genome(BWA)
+bwa aln -t 16 /work/blueridge/yanzhu/BwaIndexes/Homo_sapiens.GRCh38.dna.primary_assembly.fa xxx.fastq > xxx.sai
+bwa samse /work/blueridge/yanzhu/BwaIndexes/Homo_sapiens.GRCh38.dna.primary_assembly.fa xxx.sai xxx.fastq > xxx.sam
+paired-ended
+bwa sampe /work/blueridge/yanzhu/BwaIndexes/Homo_sapiens.GRCh38.dna.primary_assembly.fa xxx_1.sai xxx_2.sai xxx_1.fastq xxx_2.fastq > xxx.sam
+samtools flagstat xxx.sam > bwa.result
+
+Check the number of lines containing the 'XS:' tag corresponds to the number of reads showing > 1 alignments
+grep 'XS:' aligned.bam | wc -l
+Remove the lines containing the ':XS' tag
+grep -v "XS:" aligned.bam > aligned_unique.bam
+
+Skip alignments with MAPQ smaller than 10
+samtools view -@ 16 -b -q 10  aligned.bam > aligne.filtered.bam
+
+SAM to BAM(samtools)
+samtools view -@ 16 -S -b xxx.sam > xxx.bam
+
+Sorting and Indexing(samtools)
+samtools sort -@ 16 xxx.bam xxx.sorted
+sort -o xxx.sorted -O sam -T tmpprefix xxx.sam
+grep -v '^[[:space:]]*@' xxx.sam | sort -k3,3 -k4,4n > xxx.sorted.sam (remove sam header and sort to prepare sam file for methylkit)
+samtools index xxx.sorted.bam
+
+Genome Coverage
+bedtools genomecov -ibam b2_1.sorted.bam -g /home/yanzhu/blueridge/bin/chromInfo.txt > b2_1_coverage.bed
+
+Fragment densities counting(igvtools)
+igvtools count -w 100 -e 200 xxx.sorted.bam xxx.sorted.wig hg19.chrom.sizes
+
+wigToBigWig
+./wigToBigWig xxx.sorted.wig hg19.chrom.sizes xxx.sorted.bw
+
+Call peaks(MACS)
+macs14 -t treat.bam -c control.bam -g hs -n filename -w -S
+macs2 callpeak -t treat.bam -c control.bam -g hs -n filename -B
+
+SPP call peaks
+Rscript /home/yanzhu/blueridge/bin/run_spp.R -c=b2_1.bam -savp -out=spp_gm_pol2_ref
+
+Call peaks (SPP)
+#1804=read unmapped, mate unmapped, not primary alignment, read fails platform/vendor quality checks, read is PCR or optical duplicate
+module load gcc
+samtools view -@ 16 -b -F 1804 -q 30 b2_10.bam | bamToBed -i | awk 'BEGIN{FS="\t";OFS="\t"}{$4="N"; print $0}' | gzip -c > b2_10.tagAlign.gz
+samtools view -@ 16 -b -F 1804 -q 30 b2_11.bam | bamToBed -i | awk 'BEGIN{FS="\t";OFS="\t"}{$4="N"; print $0}' | gzip -c > b2_11.tagAlign.gz
+
+module purge
+module load gcc/5.1.0 openblas R/3.2.0
+Rscript /home/yanzhu/blueridge/bin/run_spp.R -c=b2_10.tagAlign.gz -i=b2_11.tagAlign.gz -npeak=300000 -savr -savp -rf -out=phantomPeakStatsReps.tab -x=-500:85 -p=16
+
+IDR Analysis
+Rscript batch-consistency-analysis.r b2_9.tagAlign_VS_b2_11.tagAlign.regionPeak b2_10.tagAlign_VS_b2_11.tagAlign.regionPeak -1 b2_9_11_VS_b2_10_11 0 F signal.value
+
+IDR Plot
+Rscript batch-consistency-plot.r 1 9_VS_10_IDR_plot b2_9_11_VS_b2_10_11
+
+Threshold
+numPeaks_9_10=$( awk '$11 <= 0.01 {print $0}' b2_9_11_VS_b2_10_11-overlapped-peaks.txt | wc -l )
+#numPeaks_9_10 = 60
+zcat b2_9.tagAlign_VS_b2_11.tagAlign.regionPeak | sort -k7nr,7nr | head -n 60 | gzip -c > spp.conservative.9_VS_11.regionPeak.gz
+
+module purge
+module load gcc/5.1.0 gsl/1.15 python/3.5.0 atlas mvapich2/2.1
+
+export PYTHONPATH=/home/yanzhu/.local/lib/python3.5/site-packages/:/opt/apps/gcc5_1/python/3.5.0/modules/lib/python:/opt/apps/gcc5_1/python/3.5.0/lib
+
+idr
+
+AQUAS TF and histone ChIP-seq pipeline
+module purge
+unset PYTHONPATH
+unset R_LIBS_USER
+(source activate aquas_chipseq_py3)
+
+python3 /home/yanzhu/blueridge/TF_chipseq_pipeline/chipseq.py -species hg19 (-type TF -final-stage idr) -nth 16 -fastq1 /DATA/REP1.fastq.gz -fastq2 /DATA/REP2.fastq.gz -ctl_fastq1 /DATA/CTL.fastq.gz
+
+python3 /home/yanzhu/blueridge/TF_chipseq_pipeline/chipseq.py -species hg19 -nth 16 -fastq1 1.fastq -fastq2 4.fastq -fastq3 6.fastq -ctl_fastq1 2.fastq
+
+QC metrics spreadsheet (TSV) generation
+python /home/yanzhu/blueridge/TF_chipseq_pipeline/utils/parse_summary_qc_recursively.py --out-file ENCODE_summary.tsv
+
+Remove unmapped, mate unmapped, not primary alignment, reads failing platform, and remove low MAPQ reads
+samtools view -@ 16 -b -F 1804 -q 30 b2_10.sorted.bam > b2_10_FILT.bam
+
+Mark duplicates
+java -Xmx728M -jar /home/yanzhu/blueridge/bin/picard.jar MarkDuplicates INPUT=b2_10_FILT.bam OUTPUT=b2_10_FILT_DUPMARK.bam METRICS_FILE= b2_10.dup.qc VALIDATION_STRINGENCY=LENIENT ASSUME_SORTED=true REMOVE_DUPLICATES=false
+
+Remove duplicates
+samtools view -@ 16 -F 1804 -b b2_10_FILT_DUPMARK.bam >  b2_10_FINAL.bam
+
+Index Final BAM file
+samtools index b2_10_FINAL.bam
+samtools flagstat b2_10_FINAL.bam > b2_10_FINAL.flagstat.qc
+
+Compute library complexity (PCR bottleneck coefficient (PBC))
+bedtools bamtobed -i b2_10_FILT_DUPMARK.bam | awk 'BEGIN{OFS="\t"}{print $1,$2,$3,$6}' | grep -v 'chrM' | sort | uniq -c | awk 'BEGIN{mt=0;m0=0;m1=0;m2=0} ($1==1){m1=m1+1} ($1==2){m2=m2+1} {m0=m0+1} {mt=mt+$1} END{printf "“%d\t%d\t%d\t%d\t%f\t%f\t%f\n",mt,m0,m1,m2,m0/mt,m1/m0,m1/m2}' > b2_10_FINAL.pbc.qc
+
+Create SE tagAlign file
+bedtools bamtobed -i  b2_10_FINAL.bam | awk 'BEGIN{OFS="\t"}{$4="N";$5="1000";print $0}' | gzip -nc >  b2_10_FINAL.tagAlign.gz
+
+Subsampled tagAlign file for CC analysis
+zcat  b2_10_FINAL.tagAlign.gz | grep -v “chrM” | shuf -n 15000000 | gzip -nc >  b2_10_FINAL_15M.tagAlign.gz
+
+Calculate Cross-correlation QC scores
+module purge
+module load gcc/5.1.0 openblas R/3.2.0
+
+Rscript /home/yanzhu/blueridge/bin/run_spp_nodups.R -c=b2_10_FINAL_15M.tagAlign.gz -p=16 -filtchr=chrM -savp=b2_10_FINAL_15M.cc.plot.pdf -out=b2_10_FINAL_15M.cc.qc
+
+take the top value of Estimated fragment length col3
+sed -r 's/,[^\t]+//g'  b2_10_FINAL_15M.cc.qc >  temp
+mv temp  b2_10_FINAL_15M.cc.qc
+
+Call peak with SPP
+Rscript /home/yanzhu/blueridge/bin/run_spp_nodups.R -c=b2_10_FINAL.tagAlign.gz -i=b2_11_FINAL.tagAlign.gz -p=16 -npeak=300000 -speak=360 -savr -savp -rf -out=b2_10_11.ccscores
+
+zcat b2_10_FINAL.tagAlign_VS_b2_11_FINAL.tagAlign.regionPeak.gz | awk 'BEGIN{OFS="\t"}{ if ($2<0) $2=0; print $1,int($2),int($3),$4,$5,$6,$7,$8,$9,$10;}' | gzip -f -nc >  b2_10_FINAL.tagAlign_x_b2_11_FINAL.tagAlign.regionPeak.gz
+
+bedtools intersect -v -a <(zcat -f b2_10_FINAL.tagAlign_x_b2_11_FINAL.tagAlign.regionPeak.gz) -b /home/yanzhu/blueridge/refGene_Prom/hg19.blacklist.bed | awk 'BEGIN{OFS="\t"} {if ($5>1000) $5=1000; print $0}' | grep -P 'chr[\dXY]+[ \t]' | gzip -nc >  b2_10_FINAL.tagAlign_x_b2_11_FINAL.tagAlign.filt.regionPeak.gz
+
+IDR analysis
+module purge
+module load gcc/5.1.0 gsl/1.15 atlas mvapich2/2.1
+
+idr --samples b2_9_FINAL.tagAlign_x_b2_11_FINAL.tagAlign.filt.regionPeak.gz b2_10_FINAL.tagAlign_x_b2_11_FINAL.tagAlign.filt.regionPeak.gz --input-file-type narrowPeak --output-file b2_9_10 --rank signal.value --soft-idr-threshold 0.05 --plot --use-best-multisummit-IDR
+
+Get peaks passing IDR threshold of 5%
+
+awk 'BEGIN{OFS="\t"} $12>='"awk -v p=0.05 'BEGIN{print -log(p)/log(10)}'"' {print $1,$2,$3,$4,$5,$6,$7,$8,$9,$10}'  b2_9_10 | sort | uniq | sort -k7n,7n | gzip -nc > 9_VS_10.IDR0.05.narrowPeak.gz
+
+bedtools intersect -v -a <(zcat -f 9_VS_10.IDR0.05.narrowPeak.gz) -b /home/yanzhu/blueridge/refGene_Prom/hg19.blacklist.bed | grep -P 'chr[\dXY]+[ \t]' | awk 'BEGIN{OFS="\t"} {if ($5>1000) $5=1000; print $0} | gzip -nc > 9_VS_10.IDR0.05.filt.narrowPeak.gz
+
+Normalize bdg generated from MACS based on SPMR and background noise reduction
+macs2 callpeak -t b2_2.bam -c b2_10.bam -B --nomodel --extsize 300 --SPMR -g hs -n macs2_b2_2_10
+
+macs2 bdgcmp -t macs2_b2_2_10_treat_pileup.bdg -c macs2_b2_2_10_control_lambda.bdg -o macs2_b2_2_10_FE.bdg -m FE
+macs2 bdgcmp -t macs2_b2_2_10_treat_pileup.bdg -c macs2_b2_2_10_control_lambda.bdg -o macs2_b2_2_10_logLR.bdg -m logLR -p 0.00001
+macs2 bdgcmp -t macs2_b2_2_10_treat_pileup.bdg -c macs2_b2_2_10_control_lambda.bdg -o macs2_b2_2_10_subtract.bdg -m subtract
+
+bdg2bw macs2_b2_2_10_treat_pileup.bdg /home/yanzhu/blueridge/bin/chromInfo.txt
+bdg2bw macs2_b2_2_10_FE.bdg /home/yanzhu/blueridge/bin/chromInfo.txt bdg2bw macs2_b2_2_10_logLR.bdg /home/yanzhu/blueridge/bin/chromInfo.txt bdg2bw macs2_b2_2_10_subtract.bdg /home/yanzhu/blueridge/bin/chromInfo.txt
+
+Remove anything<0 from macs subtracted bw
+bwtool remove less 0 macs2_b2_10_11_subtract.bw macs2_b2_10_11_subtract_removed.bw
+
+bedGraphToBigWig
+find . -name \*treat*.gz| xargs cp -t bdg2bw
+or
+bdg2bw xxx.bdg /home/yanzhu/bin/chromInfo.txt (module swap intel gcc/4.7.2)
+
+Normalize CHIP-seq signal based on RKPM
+bamCoverage -b treatment.bam -o treatment.bw -p max
+bamCoverage -b control.bam -o control.bw -p max
+
+Calculate the log2 ratio of treatment/input (or treatment-input using --ratio subtract)
+bigwigCompare -b1 treatment.bw -b2 control.bw -o log2ratio.bw
+
+Normalize CHIP-seq signal based on RKPM and subtract from input
+bamCompare -b1 treatment.bam -b2 control.bam –-ratio subtract –-normalizeUsingRPKM -o RKPM_subtract.bw
+bamCompare -b1 b2_10.sorted.bam -b2 b2_11.sorted.bam --ratio subtract --normalizeUsingRPKM --blackListFileName /home/yanzhu/blueridge/refGene_Prom/hg19.blacklist.bed -p max --skipNonCoveredRegions --ignoreDuplicates --minMappingQuality 30 --samFlagExclude 1804 -o bamcompare_10_11_rpkm_subtract_filt_nodup.bw
+
+bamCompare -b1 b2_10.sorted.bam -b2 b2_11.sorted.bam --ratio log2 --normalizeUsingRPKM --blackListFileName /home/yanzhu/blueridge/refGene_Prom/hg19.blacklist.bed -p max --skipNonCoveredRegions --ignoreDuplicates --minMappingQuality 30 --samFlagExclude 1804 -o bamcompare_10_11_rpkm_log2_filt_nodup.bw
+
+bamCoverage -b b2_10.sorted.bam --normalizeUsingRPKM --blackListFileName /home/yanzhu/blueridge/refGene_Prom/hg19.blacklist.bed -p max --skipNonCoveredRegions --ignoreDuplicates --minMappingQuality 30 --samFlagExclude 1804 -o bamcoverage_10_rpkm_filt_nodup.bw
+
+Calculate Pearson correlation coefficient at whole genome
+multiBigwigSummary(bigwigCorrelate) bins -b file1.bw file2.bw -o heatmap_wg.png --outFileCorMatrix CorMatrix_wg --corMethod pearson
+
+multiBamSummary bins --bamfiles *.sorted.bam --labels xxx -out results.npz -p max
+
+multiBigwigSummary bins -b *.bw -out results.npz -p max
+
+plotCorrelation --corData results.npz --plotFile heatmap_pearson.pdf --corMethod pearson --whatToPlot heatmap --skipZeros --removeOutliers --outFileCorMatrix pearson_cor_heatmap --plotTitle "Pearson Correlation of Read Counts"
+
+plotCorrelation --corData results.npz --plotFile test.pdf --corMethod pearson --whatToPlot heatmap --skipZeros --removeOutliers --outFileCorMatrix test --plotTitle "Pearson Correlation of Read Counts" --colorMap gnuplot2
+
+plotCorrelation --corData results.npz --plotFile heatmap_spearman.pdf --corMethod spearman --whatToPlot heatmap --skipZeros --removeOutliers --outFileCorMatrix spearman_cor_heatmap --plotTitle "Spearman Correlation of Read Counts"
+
+plotCorrelation --corData results.npz --plotFile scatterplot.pdf --corMethod pearson --whatToPlot scatterplot --skipZeros --removeOutliers --outFileCorMatrix pearson_cor_scatterplot
+
+Calculate Pearson correlation coefficient at promoter region
+multiBigwigSummary(bigwigCorrelate) BED-file -b file1.bw file2.bw -o heatmap_promoter.png --outFileCorMatrix CorMatrix_promoter --corMethod pearson --BED /home/yanzhu/refGene_Prom/refGene_Prom_2000_2000_hg19.bed
+
+multiBamSummary BED-file --BED /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed --bamfiles *.sorted.bam --labels xxx -out results_promoter.npz -p max
+
+multiBigwigSummary bins -b *.bw -bl /home/yanzhu/blueridge/refGene_Prom/hg19.blacklist.bed -out results_bin.npz -p max --outRawCounts scores_per_bin.tab
+
+plotCorrelation --corData results_bin.npz --plotFile heatmap_bin.pdf --corMethod pearson --whatToPlot heatmap --skipZeros --removeOutliers --outFileCorMatrix pearson_cor_heatmap_bin --plotTitle "Pearson Correlation of Read Counts" --plotNumbers
+
+multiBigwigSummary BED-file --BED /home/yanzhu/blueridge/refGene_Prom/refGene_Prom_2000_2000_hg19.bed -b *.bw --labels xxx -bl /home/yanzhu/blueridge/refGene_Prom/hg19.blacklist.bed -out results_promoter.npz -p max --outRawCounts scores_per_promoter.tab
+
+plotCorrelation --corData results_promoter.npz --plotFile heatmap_promoter.pdf --corMethod pearson --whatToPlot heatmap --skipZeros --removeOutliers --outFileCorMatrix pearson_cor_heatmap_promoter --plotTitle "Pearson Correlation of Read Counts" --plotNumbers
+
+plotFingerprint
+plotFingerprint -b gm_pol2_1e5_1.sorted.bam gm_pol2_1e5_2.sorted.bam gm_pol2_1e6_1.sorted.bam gm_pol2_1e6_2.sorted.bam gm_pol2_ref.sorted.bam gm_pol2_1e5_input.sorted.bam --labels gm_pol2_1e5_1 gm_pol2_1e5_2 gm_pol2_1e6_1 gm_pol2_1e6_2 gm_pol2_ref gm_pol2_1e5_input --skipZeros -T "Fingerprints of different samples" --plotFile fingerprints.pdf --outRawCounts fingerprints.tab -p max
+
+plotCoverage -b gm_pol2_1e5_1.sorted.bam gm_pol2_1e5_2.sorted.bam gm_pol2_1e6_1.sorted.bam gm_pol2_1e6_2.sorted.bam gm_pol2_ref.sorted.bam --labels gm_pol2_1e5_1 gm_pol2_1e5_2 gm_pol2_1e6_1 gm_pol2_1e6_2 gm_pol2_ref -o coverage.pdf --plotTitle "Coverage" --outRawCounts coverage.tab --ignoreDuplicates -p max
+
+plotPCA
+plotPCA -in results_promoter.npz -o PCA_readCounts.pdf -T "PCA of read counts"
+
+computeMatrix
+
+computeMatrix reference-point -S gm_pol2_1e6_1.bw -R hg19_refseq_genes.bed --referencePoint TSS -a 2000 -b 2000 -out matrix_refseq_pol2.tab.gz -p max -q
+
+plotHeatmap
+plotHeatmap -m matrix_refseq_pol2.tab.gz -out heatmap_refseq_pol2.pdf --plotTitle 'gm_pol2_1e6' --regionsLabel 'Refseq Genes' --heatmapHeight 15
+
+To find active and inactive region
+plotHeatmap -m matrix_refseq_pol2_ref.tab.gz -out heatmap_refseq_pol2_ref_cluster.pdf  --heatmapHeight 15 --kmeans 2
+
+plotEnrichment
+plotEnrichment -b gm_pol2_1e5_1.sorted.bam gm_pol2_1e5_2.sorted.bam gm_pol2_1e6_1.sorted.bam gm_pol2_1e6_2.sorted.bam gm_pol2_ref.sorted.bam gm_pol2_1e5_input.sorted.bam --labels gm_pol2_1e5_1 gm_pol2_1e5_2 gm_pol2_1e6_1 gm_pol2_1e6_2 gm_pol2_ref gm_pol2_1e5_input --BED hg19_refseq_genes.bed -o enrichment.pdf -p max
+
+Getting intergenic regions
+complementBed -i hg19_refseq_genes.bed -g chromInfo_hg19.txt > refGene_Intergenic_hg19.bed
+
+Enhancer
+intersectBed -wa -wb -a Vista_Enhancers_hg19.bed -b 2_not_intersect_8.bed | awk 'BEGIN{FS=OFS="\t"}{print $6,$7,$8,$9,$10,$11,$12,$13,$14,$15}' | sort -k1,1 -k2,2n -k3,3n -u > missingpeak_enhancer_intersect.bed
+
+Promoter
+intersectBed -wa -wb -a refGene_Prom_2000_2000_hg19.bed -b 2_not_intersect_8.bed | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$10,$11,$12,$13,$14,$15,$16}' | sort -k1,1 -k2,2n -k3,3n -u > missingpeak_prom_intersect.bed
+
+Exon
+intersectBed -wa -wb -a refGene_Exons_hg19.bed -b 2_not_intersect_8.bed | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$10,$11,$12,$13,$14,$15,$16}' | sort -k1,1 -k2,2n -k3,3n -u > missingpeak_exon_intersect.bed
+
+Encoding Exon
+intersectBed -wa -wb -a refGene_EncodingExons_hg19.bed -b 2_not_intersect_8.bed | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$10,$11,$12,$13,$14,$15,$16}' | sort -k1,1 -k2,2n -k3,3n -u > missingpeak_encodingexon_intersect.bed
+
+5'UTR Exons
+intersectBed -wa -wb -a refGene_5UTRExons_hg19.bed -b 2_not_intersect_8.bed | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$10,$11,$12,$13,$14,$15,$16}' | sort -k1,1 -k2,2n -k3,3n -u > missingpeak_5utrexon_intersect.bed
+
+3' UTR Exons
+intersectBed -wa -wb -a refGene_3UTRExons_hg19.bed -b 2_not_intersect_8.bed | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$10,$11,$12,$13,$14,$15,$16}' | sort -k1,1 -k2,2n -k3,3n -u > missingpeak_3utrexon_intersect.bed
+
+Intron
+intersectBed -wa -wb -a refGene_Introns_hg19.bed -b 2_not_intersect_8.bed | awk 'BEGIN{FS=OFS="\t"}{print $7,$8,$9,$10,$11,$12,$13,$14,$15,$16}' | sort -k1,1 -k2,2n -k3,3n -u > missingpeak_intron_intersect.bed
+
+Intergenic
+intersectBed -wa -wb -a refGene_Intergenic_hg19.bed -b 2_not_intersect_8.bed | awk 'BEGIN{FS=OFS="\t"}{print $4,$5,$6,$7,$8,$9,$10,$11,$12,$13}' | sort -k1,1 -k2,2n -k3,3n -u > missingpeak_intergenic_intersect.bed
+
+Gene Body
+intersectBed -wa -wb -a hg19_refseq_genes_uniq.bed -b 2_not_intersect_8.bed | awk 'BEGIN{FS=OFS="\t"}{print $13,$14,$15,$16,$17,$18,$19,$20,$21,$22}' | sort -k1,1 -k2,2n -k3,3n -u > missingpeak_gene_intersect.bed
